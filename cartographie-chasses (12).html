@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Rallye Fontainebleau</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root{
+  --forest:#1a2416;--moss:#2e3d28;--leaf:#4a5e3a;--sage:#7a8f66;
+  --mist:#b8c4a4;--cream:#f0ead8;--gold:#d4a943;--ink:#1a1a14;--sw:330px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;font-family:'Crimson Pro',Georgia,serif;color:var(--ink);}
+#map{position:fixed;top:0;left:var(--sw);right:0;bottom:0;z-index:1;}
+
+.sb{position:fixed;top:0;left:0;bottom:0;width:var(--sw);background:var(--forest);z-index:10;display:flex;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.6);}
+.sb-head{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;}
+.sb-head h1{font-family:'Playfair Display',serif;font-size:16px;color:var(--gold);letter-spacing:.04em;}
+.sb-head p{font-size:9px;color:var(--mist);letter-spacing:.15em;text-transform:uppercase;margin-top:2px;font-style:italic;}
+.sb-body{flex:1;overflow-y:auto;padding:10px 13px;scrollbar-width:thin;scrollbar-color:var(--leaf) transparent;}
+.sb-body::-webkit-scrollbar{width:3px;}
+.sb-body::-webkit-scrollbar-thumb{background:var(--sage);border-radius:2px;}
+
+.tabs{display:flex;gap:3px;margin-bottom:12px;}
+.tab{flex:1;padding:6px 2px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:5px;color:var(--mist);font-family:'Crimson Pro',serif;font-size:10px;cursor:pointer;transition:all .18s;text-align:center;user-select:none;}
+.tab:hover{background:rgba(255,255,255,.1);}
+.tab.on{background:rgba(212,169,67,.18);border-color:rgba(212,169,67,.5);color:var(--gold);font-weight:bold;}
+.panel{display:none;}.panel.on{display:block;}
+
+.stitle{font-family:'Playfair Display',serif;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:7px;margin-top:13px;padding-bottom:4px;border-bottom:1px solid rgba(212,169,67,.2);}
+.stitle:first-child{margin-top:0;}
+
+label{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mist);margin:8px 0 3px;}
+label:first-child{margin-top:0;}
+input,select{width:100%;padding:6px 9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:var(--cream);font-family:'Crimson Pro',serif;font-size:13px;outline:none;transition:border-color .2s;-webkit-appearance:none;appearance:none;}
+input:focus,select:focus{border-color:var(--gold);}
+select option{background:#1a2416;color:var(--cream);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.res-btn{padding:8px 4px;border:1px solid rgba(255,255,255,.1);border-radius:5px;background:rgba(255,255,255,.05);color:var(--mist);font-family:'Crimson Pro',serif;font-size:12px;cursor:pointer;transition:all .18s;text-align:center;width:100%;}
+.res-btn:hover{background:rgba(255,255,255,.1);}
+.res-btn.p-on{background:rgba(90,173,90,.18);border-color:rgba(90,173,90,.5);color:#7dcc7d;}
+.res-btn.n-on{background:rgba(224,85,85,.15);border-color:rgba(224,85,85,.4);color:#e08080;}
+
+.btn{display:block;width:100%;padding:8px 10px;margin-top:6px;border:none;border-radius:5px;font-family:'Crimson Pro',serif;font-size:13px;cursor:pointer;transition:all .18s;text-align:center;}
+.btn-g{background:var(--leaf);color:var(--cream);border:1px solid rgba(255,255,255,.1);}
+.btn-g:hover{background:var(--sage);}
+.btn-o{background:rgba(212,169,67,.15);color:var(--gold);border:1px solid rgba(212,169,67,.35);}
+.btn-o:hover{background:rgba(212,169,67,.28);}
+.btn-ghost{background:transparent;color:var(--mist);border:1px solid rgba(255,255,255,.1);font-size:12px;}
+.btn-ghost:hover{background:rgba(255,255,255,.06);color:var(--cream);}
+
+.status{padding:6px 10px;margin-top:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:5px;font-size:12px;color:var(--mist);min-height:28px;}
+.status.draw{border-color:rgba(212,169,67,.5);color:var(--gold);background:rgba(212,169,67,.08);}
+.status.ok{border-color:rgba(90,173,90,.4);color:#7dcc7d;}
+
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.mbtn{padding:7px 5px;border:1px solid transparent;border-radius:5px;background:rgba(255,255,255,.05);color:var(--mist);font-family:'Crimson Pro',serif;font-size:11px;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:5px;}
+.mbtn:hover{background:rgba(255,255,255,.1);}
+.mbtn.on{color:var(--cream);}
+.mbtn[data-m="attaque"].on{border-color:#f5a623;background:rgba(245,166,35,.12);}
+.mbtn[data-m="defaut"].on{border-color:#e05555;background:rgba(224,85,85,.12);}
+.mbtn[data-m="releve"].on{border-color:#7ec8e3;background:rgba(126,200,227,.12);}
+.mbtn[data-m="prise"].on{border-color:#f5f5dc;background:rgba(245,245,220,.08);}
+.mbtn[data-m="autre"].on{border-color:#d4a943;background:rgba(212,169,67,.12);}
+.autre-sub{margin-top:6px;display:none;}
+.autre-sub.show{display:block;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+.hcard{padding:8px 10px;margin-bottom:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:8px;}
+.hcard:hover{background:rgba(255,255,255,.09);}
+.hcard.sel{border-color:var(--gold);background:rgba(212,169,67,.1);}
+.hcard-main{flex:1;min-width:0;}
+.hcard-date{font-size:10px;color:var(--mist);}
+.hcard-stag{font-size:12px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hcard-info{font-size:10px;color:var(--mist);margin-top:2px;}
+.hcard-badge{font-size:9px;padding:2px 5px;border-radius:3px;margin-left:4px;}
+.badge-p{background:rgba(90,173,90,.25);color:#7dcc7d;border:1px solid rgba(90,173,90,.3);}
+.badge-n{background:rgba(224,85,85,.2);color:#e08080;border:1px solid rgba(224,85,85,.25);}
+.hcard-del{background:none;border:none;color:rgba(255,255,255,.2);cursor:pointer;font-size:12px;padding:2px 5px;transition:color .15s;flex-shrink:0;}
+.hcard-del:hover{color:#e05555;}
+
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.sbox{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:8px;text-align:center;}
+.sbox .n{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);line-height:1;}
+.sbox .l{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--mist);margin-top:2px;}
+
+.leg{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
+.leg-i{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--mist);}
+.tleg{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
+.tleg-i{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mist);}
+.tleg-line{width:24px;height:4px;border-radius:2px;flex-shrink:0;}
+
+.ftag{display:inline-flex;align-items:center;padding:4px 8px;border-radius:4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--mist);font-size:11px;cursor:pointer;transition:all .15s;margin:2px;}
+.ftag:hover{background:rgba(255,255,255,.1);}
+.ftag.on{background:rgba(212,169,67,.15);border-color:rgba(212,169,67,.4);color:var(--gold);}
+
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:4px;}
+.cat-btn{padding:5px 6px;border:1px solid transparent;border-radius:4px;background:rgba(255,255,255,.04);font-family:'Crimson Pro',serif;font-size:11px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:5px;color:var(--mist);width:100%;}
+.cat-btn:hover{background:rgba(255,255,255,.09);}
+.cat-btn.on{color:var(--cream);background:rgba(255,255,255,.1);}
+.cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.3);}
+
+.vc-section{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:8px;margin-top:4px;}
+.vc-title{font-size:10px;color:var(--mist);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+
+.empty{color:var(--mist);font-size:12px;font-style:italic;padding:5px 0;}
+.hr{height:1px;background:rgba(255,255,255,.07);margin:4px 0 12px;}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="sb">
+  <div class="sb-head">
+    <h1>🦌 Rallye Fontainebleau</h1>
+    <p>Carnet de chasse</p>
+    <div id="_sync" style="font-size:9px;color:#7dcc7d;margin-top:3px;letter-spacing:.08em;">⏳ Connexion…</div>
+  </div>
+  <div class="sb-body">
+    <div class="tabs" id="tabs">
+      <div class="tab on" onclick="switchTab(0)">➕ Chasse</div>
+      <div class="tab"    onclick="switchTab(1)">📍 Points</div>
+      <div class="tab"    onclick="switchTab(2)">🔎 Filtres</div>
+      <div class="tab"    onclick="switchTab(3)">📂 Liste</div>
+    </div>
+
+    <!-- ══ 0 — NOUVELLE CHASSE ══ -->
+    <div class="panel on" id="panel-0">
+      <div class="stitle">Nouvelle chasse</div>
+      <label>Date</label>
+      <input type="date" id="date">
+
+      <label>Catégorie du cerf</label>
+      <select id="stag">
+        <option>Daguet</option>
+        <option>Seconde tête</option>
+        <option>Troisième tête</option>
+        <option>Quatrième tête</option>
+        <option>Dix cors</option>
+        <option>Douze cors et plus</option>
+      </select>
+
+      <label>Résultat</label>
+      <div class="two-col" style="margin-top:3px;">
+        <button class="res-btn p-on" id="btn-prise" onclick="setResult('prise')">✦ Pris</button>
+        <button class="res-btn"      id="btn-npris" onclick="setResult('nonpris')">✕ Non pris</button>
+      </div>
+
+      <label>Durée</label>
+      <div class="two-col">
+        <div>
+          <label style="font-size:9px;margin:0 0 2px;">Heures</label>
+          <select id="dur-h">
+            <option value="0">0 h</option><option value="1">1 h</option><option value="2">2 h</option>
+            <option value="3">3 h</option><option value="4">4 h</option><option value="5">5 h</option>
+            <option value="6">6 h</option><option value="7">7 h</option><option value="8">8 h</option>
+            <option value="9">9 h</option><option value="10">10 h</option><option value="11">11 h</option>
+            <option value="12">12 h</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:9px;margin:0 0 2px;">Minutes</label>
+          <select id="dur-m">
+            <option value="0">00</option><option value="5">05</option><option value="10">10</option>
+            <option value="15">15</option><option value="20">20</option><option value="25">25</option>
+            <option value="30">30</option><option value="35">35</option><option value="40">40</option>
+            <option value="45">45</option><option value="50">50</option><option value="55">55</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Notes / Lieu</label>
+      <input type="text" id="notes" placeholder="Forêt de Fontainebleau…">
+
+      <div class="hr" style="margin-top:10px;"></div>
+      <button class="btn btn-g" onclick="startHunt()">🗺 Tracer le parcours</button>
+      <button class="btn btn-o" onclick="finishHunt()">✔ Sauvegarder la chasse</button>
+      <div class="status" id="statusBar">Cliquez « Tracer » puis cliquez sur la carte</div>
+
+      <div class="stitle" style="margin-top:16px;">Légende — couleurs des tracés</div>
+      <div class="tleg" id="tleg"></div>
+    </div>
+
+    <!-- ══ 1 — POINTS ══ -->
+    <div class="panel" id="panel-1">
+      <div class="stitle">Type de point</div>
+      <div class="mode-grid">
+        <button class="mbtn" data-m="attaque" onclick="setMode('attaque')" style="grid-column:1/-1;border-color:rgba(245,166,35,.25)">
+          <span class="dot" style="background:#f5a623"></span>⚡ Attaque
+        </button>
+        <button class="mbtn" data-m="defaut" onclick="setMode('defaut')">
+          <span class="dot" style="background:#e05555"></span>Défaut
+        </button>
+        <button class="mbtn" data-m="releve" onclick="setMode('releve')">
+          <span class="dot" style="background:#7ec8e3"></span>Défaut relevé
+        </button>
+        <button class="mbtn" data-m="prise" onclick="setMode('prise')" style="grid-column:1/-1;border-color:rgba(245,245,220,.15)">
+          <span class="dot" style="background:#f5f5dc"></span>✦ Prise
+        </button>
+        <button class="mbtn" data-m="autre" onclick="setMode('autre')" style="grid-column:1/-1">
+          <span class="dot" style="background:#d4a943"></span>Cerf croisé
+        </button>
+      </div>
+      <div class="autre-sub" id="autre-sub">
+        <label>Catégorie du cerf croisé</label>
+        <select id="autre-stag">
+          <option>Daguet</option>
+          <option>Seconde tête</option><option>Troisième tête</option>
+          <option>Quatrième tête</option><option>Dix cors</option>
+          <option>Douze cors et plus</option>
+        </select>
+      </div>
+
+      <div class="stitle" style="margin-top:12px;">Légende des points</div>
+      <div class="leg">
+        <div class="leg-i"><span class="dot" style="background:#f5a623"></span>Attaque</div>
+        <div class="leg-i"><span class="dot" style="background:#e05555"></span>Défaut</div>
+        <div class="leg-i"><span class="dot" style="background:#7ec8e3"></span>Relevé</div>
+        <div class="leg-i"><span class="dot" style="background:#f5f5dc"></span>Prise</div>
+        <div class="leg-i"><span class="dot" style="background:#d4a943;transform:rotate(45deg);border-radius:2px"></span>Cerf croisé</div>
+      </div>
+      <p style="font-size:10px;color:var(--mist);margin-top:8px;font-style:italic;">
+        Le point final (prise ou défaut) est ajouté automatiquement à la sauvegarde.
+      </p>
+
+      <div class="stitle" style="margin-top:12px;">Chasse active</div>
+      <div class="status" id="activeBar">Aucune chasse sélectionnée</div>
+    </div>
+
+    <!-- ══ 2 — FILTRES ══ -->
+    <div class="panel" id="panel-2">
+
+      <div class="stitle">Catégorie du cerf chassé</div>
+      <div class="cat-grid" id="f-cat"></div>
+
+      <div class="stitle">Cerfs vus (points croisés)</div>
+      <div class="vc-section">
+        <div class="vc-title">Catégorie</div>
+        <div class="cat-grid" id="f-vus-cat"></div>
+        <div style="margin-top:8px;">
+          <div class="vc-title">Année</div>
+          <select id="f-vus-year" onchange="renderVus()">
+            <option value="">Toutes les années</option>
+          </select>
+        </div>
+        <div style="margin-top:6px;">
+          <div class="vc-title">Mois</div>
+          <select id="f-vus-month" onchange="renderVus()">
+            <option value="">Tous les mois</option>
+            <option value="01">Janvier</option><option value="02">Février</option>
+            <option value="03">Mars</option><option value="04">Avril</option>
+            <option value="05">Mai</option><option value="06">Juin</option>
+            <option value="07">Juillet</option><option value="08">Août</option>
+            <option value="09">Septembre</option><option value="10">Octobre</option>
+            <option value="11">Novembre</option><option value="12">Décembre</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" onclick="resetVusFilters()" style="margin-top:8px;font-size:11px;">↺ Réinitialiser cerfs vus</button>
+      </div>
+
+      <div class="stitle">Résultat</div>
+      <div id="f-result">
+        <span class="ftag on" data-r=""        onclick="toggleFtag(this,'f-result','filterResult')">Toutes</span>
+        <span class="ftag"    data-r="prise"   onclick="toggleFtag(this,'f-result','filterResult')">✦ Pris</span>
+        <span class="ftag"    data-r="nonpris" onclick="toggleFtag(this,'f-result','filterResult')">✕ Non pris</span>
+      </div>
+
+      <div class="stitle">Année</div>
+      <select id="f-year" onchange="render()"><option value="">Toutes</option></select>
+
+      <div class="stitle">Mois</div>
+      <select id="f-month" onchange="render()">
+        <option value="">Tous</option>
+        <option value="01">Janvier</option><option value="02">Février</option>
+        <option value="03">Mars</option><option value="04">Avril</option>
+        <option value="05">Mai</option><option value="06">Juin</option>
+        <option value="07">Juillet</option><option value="08">Août</option>
+        <option value="09">Septembre</option><option value="10">Octobre</option>
+        <option value="11">Novembre</option><option value="12">Décembre</option>
+      </select>
+
+      <div class="stitle">Distance</div>
+      <div id="f-dist">
+        <span class="ftag on" data-d=""    onclick="toggleFtag(this,'f-dist','filterDist')">Toutes</span>
+        <span class="ftag"    data-d="30"  onclick="toggleFtag(this,'f-dist','filterDist')">−30 km</span>
+        <span class="ftag"    data-d="50"  onclick="toggleFtag(this,'f-dist','filterDist')">−50 km</span>
+        <span class="ftag"    data-d="70"  onclick="toggleFtag(this,'f-dist','filterDist')">−70 km</span>
+        <span class="ftag"    data-d="70+" onclick="toggleFtag(this,'f-dist','filterDist')">+70 km</span>
+      </div>
+
+      <div class="stitle">Durée</div>
+      <div id="f-dur">
+        <span class="ftag on" data-u=""    onclick="toggleFtag(this,'f-dur','filterDur')">Toutes</span>
+        <span class="ftag"    data-u="90"  onclick="toggleFtag(this,'f-dur','filterDur')">−1h30</span>
+        <span class="ftag"    data-u="150" onclick="toggleFtag(this,'f-dur','filterDur')">−2h30</span>
+        <span class="ftag"    data-u="210" onclick="toggleFtag(this,'f-dur','filterDur')">−3h30</span>
+        <span class="ftag"    data-u="270" onclick="toggleFtag(this,'f-dur','filterDur')">−4h30</span>
+        <span class="ftag"    data-u="330" onclick="toggleFtag(this,'f-dur','filterDur')">−5h30</span>
+        <span class="ftag"    data-u="390" onclick="toggleFtag(this,'f-dur','filterDur')">−6h30</span>
+        <span class="ftag"    data-u="450" onclick="toggleFtag(this,'f-dur','filterDur')">−7h30</span>
+        <span class="ftag"    data-u="450+"onclick="toggleFtag(this,'f-dur','filterDur')">+7h30</span>
+      </div>
+
+      <button class="btn btn-ghost" onclick="resetFilters()" style="margin-top:12px;">↺ Réinitialiser tous les filtres</button>
+    </div>
+
+    <!-- ══ 3 — LISTE ══ -->
+    <div class="panel" id="panel-3">
+      <div class="stitle">Chasses</div>
+      <div id="list"></div>
+      <div class="stitle" style="margin-top:16px;">Statistiques</div>
+      <div class="sgrid" id="stats"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+// ── MAP ───────────────────────────────────────────────────────────────────────
+const map = L.map('map',{zoomControl:true}).setView([48.4,2.7],11);
+const TILES=['https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png','https://a.tile.openstreetmap.de/{z}/{x}/{y}.png','https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'];
+let _ti=0,_tl=null;
+function tryTile(i){if(_tl)map.removeLayer(_tl);_tl=L.tileLayer(TILES[i],{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);_tl.on('tileerror',function(){if(_ti<TILES.length-1){_ti++;tryTile(_ti);}});}
+tryTile(0);
+setTimeout(()=>map.invalidateSize(),400);
+window.addEventListener('resize',()=>map.invalidateSize());
+
+// ── CATÉGORIES — "Daguet 2 ans" supprimé, "Daguet 1 an" → "Daguet" ───────────
+// Tracés : dégradé chaud ivoire→lie-de-vin, lisible sur fond OSM vert/gris
+const STAG_COLORS = {
+  "Daguet":               "#ffe066",  // jaune vif — très visible sur OSM
+  "Seconde tête":         "#ff9500",  // orange vif
+  "Troisième tête":       "#e03030",  // rouge clair
+  "Quatrième tête":       "#a020a0",  // violet
+  "Dix cors":             "#0055cc",  // bleu royal
+  "Douze cors et plus":   "#00308f"   // bleu nuit
+};
+const STAG_LIST = Object.keys(STAG_COLORS);
+
+// Points : tons froids/neutres, totalement distincts des tracés chauds
+const PT_COLORS = {
+  attaque: "#00bfff",   // bleu ciel vif
+  defaut:  "#e05555",   // rouge vif
+  releve:  "#00e5a0",   // menthe vive
+  prise:   "#f5f5f5",   // blanc nacré
+  autre:   "#d4a943"    // or (cerf croisé, forme losange)
+};
+const PT_LBL = {
+  attaque:"Attaque", defaut:"Défaut", releve:"Défaut relevé",
+  prise:"Prise", autre:"Cerf croisé"
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let hunts = JSON.parse(localStorage.getItem("hunts_rally")||"[]"); // sera remplacé par Firestore
+let drawing    = false;
+let path       = [];
+let tempLine   = null;
+let mode       = null;
+let active     = null;
+let layers     = [];
+let huntResult = "prise";
+let filterResult="", filterDist="", filterDur="", filterCat="";
+let filterVusCat="", filterVusYear="", filterVusMonth="";
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(idx){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===idx));
+  document.querySelectorAll('.panel').forEach((p,i)=>p.classList.toggle('on',i===idx));
+  if(idx===3) renderList(getFiltered());
+}
+
+// ── LÉGENDES ──────────────────────────────────────────────────────────────────
+function buildLegend(){
+  document.getElementById('tleg').innerHTML = STAG_LIST.map(s=>
+    `<div class="tleg-i"><div class="tleg-line" style="background:${STAG_COLORS[s]}"></div>${s}</div>`
+  ).join('');
+}
+buildLegend();
+
+function buildCatFilter(){
+  document.getElementById('f-cat').innerHTML =
+    `<button class="cat-btn${filterCat===''?' on':''}" onclick="setCatFilter('')">
+       <span class="cat-dot" style="background:rgba(255,255,255,.3)"></span>Toutes
+     </button>` +
+    STAG_LIST.map(s=>
+      `<button class="cat-btn${filterCat===s?' on':''}" onclick="setCatFilter('${s}')">
+         <span class="cat-dot" style="background:${STAG_COLORS[s]}"></span>${s}
+       </button>`
+    ).join('');
+}
+buildCatFilter();
+function setCatFilter(v){ filterCat=v; buildCatFilter(); render(); }
+
+function buildVusCatFilter(){
+  document.getElementById('f-vus-cat').innerHTML =
+    `<button class="cat-btn${filterVusCat===''?' on':''}" onclick="setVusCat('')">
+       <span class="cat-dot" style="background:rgba(255,255,255,.3)"></span>Toutes
+     </button>` +
+    STAG_LIST.map(s=>
+      `<button class="cat-btn${filterVusCat===s?' on':''}" onclick="setVusCat('${s}')">
+         <span class="cat-dot" style="background:${STAG_COLORS[s]}"></span>${s}
+       </button>`
+    ).join('');
+}
+buildVusCatFilter();
+
+function setVusCat(v){ filterVusCat=v; buildVusCatFilter(); render(); }
+function renderVus(){ filterVusYear=document.getElementById('f-vus-year').value; filterVusMonth=document.getElementById('f-vus-month').value; render(); }
+function resetVusFilters(){ filterVusCat="";filterVusYear="";filterVusMonth=""; document.getElementById('f-vus-year').value=""; document.getElementById('f-vus-month').value=""; buildVusCatFilter(); render(); }
+function isVusActive(){ return !!(filterVusCat||filterVusYear||filterVusMonth); }
+
+// ── RÉSULTAT FORMULAIRE ───────────────────────────────────────────────────────
+function setResult(r){
+  huntResult=r;
+  document.getElementById('btn-prise').className='res-btn'+(r==='prise'?' p-on':'');
+  document.getElementById('btn-npris').className='res-btn'+(r==='nonpris'?' n-on':'');
+}
+setResult('prise');
+
+// ── ACTIONS CHASSE ────────────────────────────────────────────────────────────
+function startHunt(){
+  drawing=true; path=[];
+  if(tempLine){map.removeLayer(tempLine);tempLine=null;}
+  updateStatus();
+}
+
+function calcKm(line){
+  if(!line||line.length<2)return 0;
+  let d=0;
+  for(let i=1;i<line.length;i++) d+=L.latLng(line[i-1]).distanceTo(L.latLng(line[i]));
+  return d/1000;
+}
+
+function finishHunt(){
+  const date  = document.getElementById("date").value;
+  const stag  = document.getElementById("stag").value;
+  const notes = document.getElementById("notes").value;
+  const durH  = parseInt(document.getElementById("dur-h").value)||0;
+  const durM  = parseInt(document.getElementById("dur-m").value)||0;
+  if(!date){ showMsg("Veuillez sélectionner une date."); return; }
+  if(path.length<2){ showMsg("Tracez au moins 2 points sur la carte après « Tracer »."); return; }
+
+  // Point final automatique sur le dernier point du tracé
+  // → type "prise" si pris, type "defaut" si non pris
+  const lastPt = path[path.length-1];
+  const autoPoint = {
+    type: huntResult==='prise' ? 'prise' : 'defaut',
+    lat: lastPt[0], lng: lastPt[1],
+    auto: true
+  };
+
+  const h={
+    id:Date.now(), date, stag, notes,
+    result: huntResult,
+    durMin: durH*60+durM,
+    line: [...path],
+    points: [autoPoint]   // point final auto, les autres seront ajoutés via onglet Points
+  };
+  hunts.push(h); save(); saveHunt(h);
+  active=h.id; drawing=false; path=[];
+  if(tempLine){map.removeLayer(tempLine);tempLine=null;}
+  updateYearFilter(); updateStatus(); updateActiveBar(); render();
+  switchTab(1);
+}
+
+function setMode(m){
+  if(!active){ showMsg("Sélectionnez d'abord une chasse (onglet Liste)."); return; }
+  mode=(mode===m)?null:m;
+  document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
+  document.getElementById('autre-sub').classList.toggle('show',mode==='autre');
+  updateActiveBar();
+}
+
+function selectHunt(id){
+  if(active===id){
+    active=null; mode=null;
+    document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('on'));
+    document.getElementById('autre-sub').classList.remove('show');
+    document.querySelectorAll('.hcard').forEach(c=>c.classList.remove('sel'));
+    updateActiveBar(); render(); return;
+  }
+  active=id; mode=null;
+  document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('autre-sub').classList.remove('show');
+  document.querySelectorAll('.hcard').forEach(c=>c.classList.toggle('sel',+c.dataset.id===id));
+  updateActiveBar(); render();
+  const h=hunts.find(x=>x.id===id);
+  if(h&&h.line&&h.line.length>0){
+    try{map.fitBounds(L.polyline(h.line).getBounds(),{padding:[60,60]});}catch(e){}
+  }
+}
+
+function deleteHunt(id,e){
+  e.stopPropagation();
+  if(!confirm("Supprimer cette chasse ?"))return;
+  hunts=hunts.filter(h=>h.id!==id);
+  if(active===id){active=null;mode=null;}
+  save(); deleteHuntRemote(id); updateYearFilter(); render();
+}
+
+// ── SNAP TO LINE ──────────────────────────────────────────────────────────────
+function snapToLine(latlng,line){
+  if(!line||line.length<2)return latlng;
+  let best=null,bestDist=Infinity;
+  for(let i=0;i<line.length-1;i++){
+    const s=closestPtOnSeg(latlng,L.latLng(line[i]),L.latLng(line[i+1]));
+    const d=latlng.distanceTo(s);
+    if(d<bestDist){bestDist=d;best=s;}
+  }
+  return best||latlng;
+}
+function closestPtOnSeg(p,a,b){
+  const dx=b.lng-a.lng,dy=b.lat-a.lat,len2=dx*dx+dy*dy;
+  if(!len2)return a;
+  const t=Math.max(0,Math.min(1,((p.lng-a.lng)*dx+(p.lat-a.lat)*dy)/len2));
+  return L.latLng(a.lat+t*dy,a.lng+t*dx);
+}
+
+// ── MAP CLICK ─────────────────────────────────────────────────────────────────
+map.on('click',e=>{
+  const latlng=e.latlng;
+  if(drawing){
+    path.push([latlng.lat,latlng.lng]);
+    if(tempLine)map.removeLayer(tempLine);
+    tempLine=L.polyline(path,{color:"#d4a943",weight:2.5,dashArray:"6,4",opacity:.9}).addTo(map);
+    updateStatus(); return;
+  }
+  if(!mode||!active)return;
+  const h=hunts.find(x=>x.id===active);
+  if(!h)return;
+  let ll=latlng;
+  if((mode==='defaut'||mode==='releve')&&h.line&&h.line.length>1)
+    ll=snapToLine(latlng,h.line);
+  const pt={type:mode,lat:ll.lat,lng:ll.lng};
+  if(mode==='autre') pt.autreCat=document.getElementById('autre-stag').value;
+  h.points.push(pt); save(); saveHunt(h); render();
+});
+
+// ── FILTRES ───────────────────────────────────────────────────────────────────
+function toggleFtag(el,gid,varName){
+  document.querySelectorAll('#'+gid+' .ftag').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  if(varName==='filterResult') filterResult=el.dataset.r;
+  if(varName==='filterDist')   filterDist=el.dataset.d;
+  if(varName==='filterDur')    filterDur=el.dataset.u;
+  render();
+}
+
+function resetFilters(){
+  document.getElementById("f-year").value="";
+  document.getElementById("f-month").value="";
+  filterResult=""; filterDist=""; filterDur=""; filterCat="";
+  ['f-result','f-dist','f-dur'].forEach(gid=>{
+    document.querySelectorAll('#'+gid+' .ftag').forEach(t=>t.classList.remove('on'));
+    document.querySelector('#'+gid+' .ftag:first-child').classList.add('on');
+  });
+  buildCatFilter();
+  resetVusFilters();
+}
+
+function getFiltered(){
+  const fy=document.getElementById("f-year").value;
+  const fm=document.getElementById("f-month").value;
+  return hunts.filter(h=>{
+    if(fy && !h.date.startsWith(fy)) return false;
+    if(fm && h.date.slice(5,7)!==fm) return false;
+    if(filterCat && h.stag!==filterCat) return false;
+    if(filterResult==='prise'   && h.result!=='prise')  return false;
+    if(filterResult==='nonpris' && h.result!=='nonpris') return false;
+    const km=calcKm(h.line);
+    if(filterDist==='30'  && km>=30)           return false;
+    if(filterDist==='50'  && (km<30||km>=50))  return false;
+    if(filterDist==='70'  && (km<50||km>=70))  return false;
+    if(filterDist==='70+' && km<70)            return false;
+    const dur=h.durMin||0;
+    if(filterDur==='90'  && dur>=90)            return false;
+    if(filterDur==='150' && (dur<90||dur>=150))   return false;
+    if(filterDur==='210' && (dur<150||dur>=210))  return false;
+    if(filterDur==='270' && (dur<210||dur>=270))  return false;
+    if(filterDur==='330' && (dur<270||dur>=330))  return false;
+    if(filterDur==='390' && (dur<330||dur>=390))  return false;
+    if(filterDur==='450' && (dur<390||dur>=450))  return false;
+    if(filterDur==='450+'&& dur<450)              return false;
+    return true;
+  });
+}
+
+function updateYearFilter(){
+  const yrs=[...new Set(hunts.map(h=>h.date.slice(0,4)))].sort().reverse();
+  const opts='<option value="">Toutes</option>'+yrs.map(y=>`<option>${y}</option>`).join('');
+  document.getElementById("f-year").innerHTML=opts;
+  const optsV='<option value="">Toutes les années</option>'+yrs.map(y=>`<option>${y}</option>`).join('');
+  document.getElementById("f-vus-year").innerHTML=optsV;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(){
+  layers.forEach(l=>{try{map.removeLayer(l);}catch(e){}});
+  layers=[];
+
+  const filtered  = getFiltered();
+  const vusModeOn = isVusActive();
+
+  filtered.forEach(h=>{
+    const isAct = (h.id===active);
+    const col   = STAG_COLORS[h.stag]||"#d4a943";
+    const pris  = (h.result==='prise');
+
+    // ── Tracé : masqué en mode cerfs vus
+    if(!vusModeOn && h.line && h.line.length>1){
+      const pl=L.polyline(h.line,{
+        color:     col,
+        weight:    isAct ? 6 : 2.5,
+        opacity:   isAct ? 1 : 0.65,
+        dashArray: pris ? null : "8,5"   // pointillés = non pris
+      }).addTo(map);
+
+      const km=calcKm(h.line).toFixed(1);
+      pl.bindTooltip(
+        `<strong>${h.stag}</strong><br>${fmtDate(h.date)}`+
+        (h.notes?`<br><em>${h.notes}</em>`:'')+
+        `<br>${pris?'✦ Pris':'✕ Non pris'}`+
+        `<br>📏 ${km} km &nbsp;⏱ ${fmtDur(h.durMin)}`,
+        {sticky:true, className:'lth'}
+      );
+      pl.on('click',ev=>{
+        L.DomEvent.stopPropagation(ev);
+        selectHunt(h.id);
+        switchTab(3);
+      });
+      layers.push(pl);
+
+      // Marqueur départ
+      const si=L.divIcon({
+        html:`<div style="width:10px;height:10px;background:${col};border:2px solid white;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div>`,
+        className:'',iconAnchor:[5,5]
+      });
+      layers.push(L.marker(h.line[0],{icon:si}).addTo(map));
+    }
+
+    // ── Points
+    h.points.forEach(p=>{
+      const isCerfVu=(p.type==='autre');
+
+      if(vusModeOn){
+        // Mode cerfs vus : afficher uniquement les cerfs croisés filtrés
+        if(!isCerfVu) return;
+        if(filterVusCat && p.autreCat!==filterVusCat) return;
+        if(filterVusYear  && h.date.slice(0,4)!==filterVusYear)  return;
+        if(filterVusMonth && h.date.slice(5,7)!==filterVusMonth) return;
+      }
+
+      let ptCol, tip;
+      if(isCerfVu && p.autreCat){
+        // Cerf croisé : couleur de sa catégorie (tracé), forme losange
+        ptCol = STAG_COLORS[p.autreCat]||"#d4a943";
+        tip   = `<strong>${p.autreCat}</strong><br>${fmtDate(h.date)}`;
+      } else {
+        ptCol = PT_COLORS[p.type]||"#999";
+        tip   = PT_LBL[p.type]||p.type;
+        // Ajouter "auto" dans le tooltip si point automatique
+        if(p.auto) tip += ' <em>(auto)</em>';
+      }
+
+      const size = isCerfVu ? 12 : 10;
+      const shape = isCerfVu
+        ? `<div style="width:${size}px;height:${size}px;background:${ptCol};border:2px solid white;border-radius:2px;transform:rotate(45deg);box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>`
+        : `<div style="width:${size}px;height:${size}px;background:${ptCol};border:2px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`;
+
+      const ico=L.divIcon({html:shape,className:'',iconAnchor:[size/2,size/2]});
+      layers.push(L.marker([p.lat,p.lng],{icon:ico}).bindTooltip(tip,{className:'lth'}).addTo(map));
+    });
+  });
+
+  renderList(filtered);
+  renderStats(filtered);
+}
+
+function renderList(filtered){
+  const el=document.getElementById("list");
+  if(!hunts.length){el.innerHTML=`<div class="empty">Aucune chasse enregistrée</div>`;return;}
+  el.innerHTML=hunts.slice().reverse().map(h=>{
+    const inF=filtered.some(f=>f.id===h.id);
+    const pris=(h.result==='prise');
+    const col=STAG_COLORS[h.stag]||"#d4a943";
+    const isAct=(h.id===active);
+    const km=calcKm(h.line).toFixed(1);
+    const nCerfsVus=h.points.filter(p=>p.type==='autre').length;
+    return `<div class="hcard${isAct?' sel':''}" data-id="${h.id}" onclick="selectHunt(${h.id})" style="${inF?'':'opacity:.28;'}">
+      <div style="width:3px;min-height:40px;background:${col};border-radius:2px;flex-shrink:0;align-self:stretch"></div>
+      <div class="hcard-main">
+        <div class="hcard-date">${fmtDate(h.date)}</div>
+        <div class="hcard-stag">${h.stag}<span class="hcard-badge ${pris?'badge-p':'badge-n'}">${pris?'Pris':'Non pris'}</span></div>
+        <div class="hcard-info">📏 ${km} km &nbsp;⏱ ${fmtDur(h.durMin)}${nCerfsVus?' &nbsp;👁 '+nCerfsVus+' vu'+(nCerfsVus>1?'s':''):''}</div>
+      </div>
+      <button class="hcard-del" onclick="deleteHunt(${h.id},event)">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderStats(filtered){
+  const total  = filtered.length;
+  const prises = filtered.filter(h=>h.result==='prise').length;
+  const km     = filtered.reduce((a,h)=>a+calcKm(h.line),0);
+  const pct    = total?Math.round(prises/total*100):0;
+  document.getElementById("stats").innerHTML=`
+    <div class="sbox"><div class="n">${total}</div><div class="l">Chasses</div></div>
+    <div class="sbox"><div class="n">${prises}</div><div class="l">Pris</div></div>
+    <div class="sbox"><div class="n">${pct}%</div><div class="l">Réussite</div></div>
+    <div class="sbox"><div class="n">${km.toFixed(0)}</div><div class="l">km tracés</div></div>
+  `;
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function save(){ localStorage.setItem("hunts_rally",JSON.stringify(hunts)); }
+
+function fmtDate(d){
+  if(!d)return"—";
+  const[y,m,j]=d.split("-");
+  const M=["jan","fév","mar","avr","mai","jun","jul","aoû","sep","oct","nov","déc"];
+  return`${parseInt(j)} ${M[parseInt(m)-1]} ${y}`;
+}
+
+function fmtDur(min){
+  if(!min)return"—";
+  const h=Math.floor(min/60), m=min%60;
+  return h?(m?`${h}h${String(m).padStart(2,'0')}`:`${h}h`):`${m}min`;
+}
+
+function updateStatus(){
+  const bar=document.getElementById("statusBar");
+  if(drawing){bar.className="status draw";bar.textContent=`✦ Tracé en cours — ${path.length} pts — Cliquez sur la carte`;}
+  else{bar.className="status ok";bar.textContent="✔ Prêt";}
+}
+
+function updateActiveBar(){
+  const bar=document.getElementById("activeBar");
+  if(!active){bar.className="status";bar.textContent="Aucune chasse sélectionnée";return;}
+  const h=hunts.find(x=>x.id===active);
+  if(!h){bar.className="status";bar.textContent="Chasse introuvable";return;}
+  bar.className="status ok";
+  bar.textContent=`${h.stag} — ${fmtDate(h.date)}${mode?' · '+PT_LBL[mode]:''}`;
+}
+
+function showMsg(txt){
+  let el=document.getElementById('_msg');
+  if(!el){
+    el=document.createElement('div');el.id='_msg';
+    el.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2e3d28;color:#f0ead8;padding:9px 18px;border-radius:6px;font-family:Crimson Pro,serif;font-size:13px;z-index:9999;border:1px solid rgba(212,169,67,.4);box-shadow:0 2px 12px rgba(0,0,0,.5);pointer-events:none;transition:opacity .5s;';
+    document.body.appendChild(el);
+  }
+  el.textContent=txt; el.style.opacity='1';
+  clearTimeout(el._t); el._t=setTimeout(()=>{el.style.opacity='0';},3200);
+}
+
+// ── TOOLTIP CSS ───────────────────────────────────────────────────────────────
+const sty=document.createElement('style');
+sty.textContent=`.lth{background:#1a2416!important;border:1px solid rgba(212,169,67,.4)!important;color:#f0ead8!important;font-family:'Crimson Pro',Georgia,serif!important;font-size:12px!important;padding:6px 10px!important;border-radius:5px!important;box-shadow:0 2px 10px rgba(0,0,0,.5)!important;pointer-events:none;line-height:1.6;}.lth strong{color:#d4a943;}.leaflet-tooltip.lth::before{display:none;}`;
+document.head.appendChild(sty);
+
+// ── FIREBASE ─────────────────────────────────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBRpLCkbPYd-_q8uHn4x7XWFJnBT3PgARw",
+  authDomain: "carte-rf.firebaseapp.com",
+  projectId: "carte-rf",
+  storageBucket: "carte-rf.firebasestorage.app",
+  messagingSenderId: "1054447454598",
+  appId: "1:1054447454598:web:53e98f3b5031932d568407"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db    = getFirestore(fbApp);
+const huntsCol = collection(db, "hunts");
+
+// Indicateur de connexion dans le header
+function setOnline(ok){
+  const el = document.getElementById('_sync');
+  if(!el) return;
+  el.textContent = ok ? '🟢 Synchronisé' : '🔴 Hors ligne';
+  el.style.color  = ok ? '#7dcc7d' : '#e08080';
+}
+
+// Remplace save() — écrit dans Firestore
+async function save(){
+  // Aussi en localStorage comme sauvegarde locale
+  localStorage.setItem("hunts_rally", JSON.stringify(hunts));
+}
+
+// Sauvegarde une chasse précise dans Firestore
+async function saveHunt(h){
+  try {
+    await setDoc(doc(db, "hunts", String(h.id)), h);
+    setOnline(true);
+  } catch(e){
+    console.error("Firestore write error:", e);
+    setOnline(false);
+  }
+}
+
+// Supprime une chasse dans Firestore
+async function deleteHuntRemote(id){
+  try {
+    await deleteDoc(doc(db, "hunts", String(id)));
+  } catch(e){ console.error(e); }
+}
+
+// Écoute en temps réel — met à jour hunts[] dès qu'un autre utilisateur modifie
+function startSync(){
+  onSnapshot(huntsCol, (snapshot) => {
+    hunts = snapshot.docs.map(d => d.data());
+    hunts.sort((a,b) => a.id - b.id);
+    localStorage.setItem("hunts_rally", JSON.stringify(hunts));
+    updateYearFilter();
+    render();
+    setOnline(true);
+    showMsg("✓ Données synchronisées");
+  }, (err) => {
+    console.error(err);
+    setOnline(false);
+  });
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+updateYearFilter(); render(); updateStatus();
+startSync();
+</script>
+</body>
+</html>
