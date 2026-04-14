@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -317,7 +318,7 @@ select option{background:#1a2416;color:var(--cream);}
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module">
+<script>
 // ── MAP ───────────────────────────────────────────────────────────────────────
 const map = L.map('map',{zoomControl:true}).setView([48.4,2.7],11);
 const TILES=['https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png','https://a.tile.openstreetmap.de/{z}/{x}/{y}.png','https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'];
@@ -760,10 +761,50 @@ const sty=document.createElement('style');
 sty.textContent=`.lth{background:#1a2416!important;border:1px solid rgba(212,169,67,.4)!important;color:#f0ead8!important;font-family:'Crimson Pro',Georgia,serif!important;font-size:12px!important;padding:6px 10px!important;border-radius:5px!important;box-shadow:0 2px 10px rgba(0,0,0,.5)!important;pointer-events:none;line-height:1.6;}.lth strong{color:#d4a943;}.leaflet-tooltip.lth::before{display:none;}`;
 document.head.appendChild(sty);
 
-// ── FIREBASE ─────────────────────────────────────────────────────────────────
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// ── FIREBASE (compat SDK - pas d'imports) ────────────────────────────────────
+function setOnline(ok){
+  const el = document.getElementById('_sync');
+  if(!el) return;
+  el.textContent = ok ? '🟢 Synchronisé' : '🔴 Hors ligne';
+  el.style.color  = ok ? '#7dcc7d' : '#e08080';
+}
 
+function saveHunt(h){
+  if(!window._db) return;
+  window._db.collection("hunts").doc(String(h.id)).set(h)
+    .then(()=>setOnline(true))
+    .catch(e=>{console.error(e);setOnline(false);});
+}
+
+function deleteHuntRemote(id){
+  if(!window._db) return;
+  window._db.collection("hunts").doc(String(id)).delete()
+    .catch(e=>console.error(e));
+}
+
+function startSync(){
+  if(!window._db) return;
+  window._db.collection("hunts").onSnapshot(snapshot=>{
+    hunts = snapshot.docs.map(d=>d.data());
+    hunts.sort((a,b)=>a.id-b.id);
+    localStorage.setItem("hunts_rally",JSON.stringify(hunts));
+    updateYearFilter();
+    render();
+    setOnline(true);
+  }, err=>{
+    console.error(err);
+    setOnline(false);
+  });
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+updateYearFilter(); render(); updateStatus();
+</script>
+
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyBRpLCkbPYd-_q8uHn4x7XWFJnBT3PgARw",
   authDomain: "carte-rf.firebaseapp.com",
@@ -772,61 +813,8 @@ const firebaseConfig = {
   messagingSenderId: "1054447454598",
   appId: "1:1054447454598:web:53e98f3b5031932d568407"
 };
-
-const fbApp = initializeApp(firebaseConfig);
-const db    = getFirestore(fbApp);
-const huntsCol = collection(db, "hunts");
-
-// Indicateur de connexion dans le header
-function setOnline(ok){
-  const el = document.getElementById('_sync');
-  if(!el) return;
-  el.textContent = ok ? '🟢 Synchronisé' : '🔴 Hors ligne';
-  el.style.color  = ok ? '#7dcc7d' : '#e08080';
-}
-
-// Remplace save() — écrit dans Firestore
-async function save(){
-  // Aussi en localStorage comme sauvegarde locale
-  localStorage.setItem("hunts_rally", JSON.stringify(hunts));
-}
-
-// Sauvegarde une chasse précise dans Firestore
-async function saveHunt(h){
-  try {
-    await setDoc(doc(db, "hunts", String(h.id)), h);
-    setOnline(true);
-  } catch(e){
-    console.error("Firestore write error:", e);
-    setOnline(false);
-  }
-}
-
-// Supprime une chasse dans Firestore
-async function deleteHuntRemote(id){
-  try {
-    await deleteDoc(doc(db, "hunts", String(id)));
-  } catch(e){ console.error(e); }
-}
-
-// Écoute en temps réel — met à jour hunts[] dès qu'un autre utilisateur modifie
-function startSync(){
-  onSnapshot(huntsCol, (snapshot) => {
-    hunts = snapshot.docs.map(d => d.data());
-    hunts.sort((a,b) => a.id - b.id);
-    localStorage.setItem("hunts_rally", JSON.stringify(hunts));
-    updateYearFilter();
-    render();
-    setOnline(true);
-    showMsg("✓ Données synchronisées");
-  }, (err) => {
-    console.error(err);
-    setOnline(false);
-  });
-}
-
-// ── BOOT ──────────────────────────────────────────────────────────────────────
-updateYearFilter(); render(); updateStatus();
+firebase.initializeApp(firebaseConfig);
+window._db = firebase.firestore();
 startSync();
 </script>
 </body>
