@@ -459,9 +459,11 @@ function finishHunt(){
     line: [...path],
     points: [autoPoint]   // point final auto, les autres seront ajoutés via onglet Points
   };
-  hunts.push(h); save(); saveHunt(h);
-  active=h.id; drawing=false; path=[];
+  // Stopper le tracé AVANT tout
+  drawing=false; path=[];
   if(tempLine){map.removeLayer(tempLine);tempLine=null;}
+  hunts.push(h); save(); saveHunt(h);
+  active=h.id;
   updateYearFilter(); updateStatus(); updateActiveBar(); render();
   switchTab(1);
 }
@@ -785,6 +787,8 @@ function deleteHuntRemote(id){
 function startSync(){
   if(!window._db) return;
   window._db.collection("hunts").onSnapshot(snapshot=>{
+    // Ne pas interrompre un tracé en cours
+    if(drawing) return;
     hunts = snapshot.docs.map(d=>d.data());
     hunts.sort((a,b)=>a.id-b.id);
     localStorage.setItem("hunts_rally",JSON.stringify(hunts));
